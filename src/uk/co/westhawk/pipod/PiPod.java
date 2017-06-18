@@ -24,12 +24,17 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Stream;
 import javax.xml.xpath.XPath;
+import javax.xml.xpath.XPathConstants;
+import javax.xml.xpath.XPathExpression;
 import javax.xml.xpath.XPathFactory;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
 
 /**
@@ -44,11 +49,11 @@ public class PiPod implements Runnable {
      * @param args the command line arguments
      */
     public static void main(String[] args) {
-        Log.setLevel(Log.ALL);
+        Log.setLevel(Log.DEBUG);
         if (args.length == 2) {
             new PiPod(args);
         } else {
-            String[] names = {"b01s6xyk", "b007qlvb", "p02pc9pj"};
+            String[] names = {"b01s6xyk", "b007qlvb", "p02pc9pj", "p02pc9x6"};
             new PiPod(names);
         }
     }
@@ -57,40 +62,51 @@ public class PiPod implements Runnable {
     List<String> played = new ArrayList();
 
     public PiPod(String[] names) {
+        // grab what we have already heard
         try {
             readPlayed();
         } catch (IOException ex) {
             Log.debug(ex.getMessage());
         }
+        // pull in the current list of available programs
         HashMap<String, Long> progs = new HashMap();
         for (String n : names) {
             HashMap ps = getPrograms(n);
             progs.putAll(ps);
         }
-        
-        int items = progs.size();
-        Log.debug("count is " + items);
-        if (items > 1) {
-            Thread tin = new Thread(this);
-            tin.setName("tin");
-            tin.start();
-        }
+        // remove anything in the played list that isn't available
+        cleanPlayed(progs.keySet());
 
         Stream<Map.Entry<String, Long>> sorted
                 = progs.entrySet().stream()
                 .sorted(Map.Entry.comparingByValue(Comparator.reverseOrder()));
-               
-        Stream<Map.Entry<String, Long>> unplayed = sorted.filter(x ->  {return !played.contains(x.getKey());});
 
+        Stream<Map.Entry<String, Long>> unplayed = sorted.filter(x -> {
+            return !played.contains(x.getKey());
+        });
+
+        Thread tin = new Thread(this);
+        tin.setName("tin");
+        tin.start();
+
+        // and play them each in turn, allowing the user to skip
         unplayed.forEach(x -> {
             try {
                 playProg(x.getKey());
                 played.add(x.getKey());
-                writePlayed();
+                writePlayed(); // store the list of what we've heard.
             } catch (Exception ex) {
                 Log.error(ex.getMessage());
             }
         });
+    }
+
+    public void cleanPlayed(Set<String> avail) {
+        ArrayList<String> nplay = new ArrayList();
+        played.stream().filter(p -> {
+            return avail.contains(p);
+        }).forEach(o -> nplay.add(o));
+        played = nplay;
     }
 
     public void writePlayed() throws IOException {
@@ -141,30 +157,25 @@ public class PiPod implements Runnable {
             Log.debug("read " + lin);
             DataInputStream is = new DataInputStream(icon.getInputStream());
             is.readFully(buff);
-
-            String xpath = "count(/rss/channel/item/enclosure/@url)";
             ByteArrayInputStream bbi = new ByteArrayInputStream(buff);
             InputSource ips = new InputSource(bbi);
             XPath xPath = XPathFactory.newInstance().newXPath();
+            XPathExpression exp = xPath.compile("/rss/channel/item");
+            XPathExpression uexp = xPath.compile("enclosure/@url");
+            XPathExpression dexp = xPath.compile("pubDate");
 
-            String res = xPath.evaluate(xpath, ips);
-            int items = Integer.parseInt(res);
-            for (int i = 1; i <= items; i++) {
-                bbi = new ByteArrayInputStream(buff);
-                ips = new InputSource(bbi);
-                xPath = XPathFactory.newInstance().newXPath();
-                xpath = "/rss/channel/item[" + i + "]/enclosure/@url";
-                String url = xPath.evaluate(xpath, ips);
-                Log.debug("adding " + url);
-                xPath = XPathFactory.newInstance().newXPath();
-                xpath = "/rss/channel/item[" + i + "]/pubDate";
-                bbi = new ByteArrayInputStream(buff);
-                ips = new InputSource(bbi);
-                String date = xPath.evaluate(xpath, ips);
+            NodeList items = (NodeList) exp.evaluate(ips, XPathConstants.NODESET);
+            int nitmes = items.getLength();
+            for (int i = 0; i < nitmes; i++) {
+                Node item = items.item(i);
+                String url = uexp.evaluate(item);
+                String date = dexp.evaluate(item);
                 Long d = Date.parse(date);
-                Log.debug("date " + date + " " + d);
+                Log.verb("adding " + url);
+                Log.verb("date " + date + " " + d);
                 ret.put(url, d);
             }
+
         } catch (Exception ex) {
             Log.error(ex.getMessage());
             ex.printStackTrace();
