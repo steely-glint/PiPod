@@ -47,6 +47,7 @@ public class MP3Play {
     Player _play;
     Thread _playThread;
     private float _gain;
+    private boolean loop = true;
 
     public MP3Play(String suburi) {
 
@@ -64,7 +65,9 @@ public class MP3Play {
 
 
     }
-
+    public void setLoop(boolean v){
+        loop = v;
+    }
     AudioDevice makeAudioDevice() throws JavaLayerException {
         final AudioDevice rdev = FactoryRegistry.systemRegistry().createAudioDevice();
 
@@ -117,7 +120,7 @@ public class MP3Play {
         try {
             InputStream in;
             AudioDevice dev = null;
-            while (_playThread != null) {
+            while (_playThread != null){
                 if (_play != null) {
                     _play.close();
                     _play = null;
@@ -137,6 +140,7 @@ public class MP3Play {
 		if (_playThread != null) {
                  	_play.play();
 		}
+                if (!loop) { break;}
             }
         } catch (Exception ex) {
             Log.error(ex.toString());
@@ -165,6 +169,7 @@ public class MP3Play {
     public void awaitEnd() throws InterruptedException{
         if (_playThread != null){
             _playThread.join();
+            _playThread = null;
         }
     }
 
