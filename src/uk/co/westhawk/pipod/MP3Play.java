@@ -160,6 +160,13 @@ public class MP3Play {
             Log.error("play.stop() error" + t.getMessage());
         }
     }
+    
+    
+    public void awaitEnd() throws InterruptedException{
+        if (_playThread != null){
+            _playThread.join();
+        }
+    }
 
     public static void main(String[] argv) {
         // test harness.
