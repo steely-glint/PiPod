@@ -50,7 +50,7 @@ public class PiPod implements Runnable {
      */
     public static void main(String[] args) {
         Log.setLevel(Log.DEBUG);
-        if (args.length == 2) {
+        if (args.length > 0) {
             new PiPod(args);
         } else {
             String[] names = {"b01s6xyk", "b007qlvb", "p02pc9pj", "p02pc9x6"};
@@ -131,7 +131,11 @@ public class PiPod implements Runnable {
         try {
             // http://downloads.bbc.co.uk/podcasts/radio4/comedy/rss.xml
             // feed://podcasts.files.bbci.co.uk/p02pc9pj.rss
-            String hurl = "https://podcasts.files.bbci.co.uk/" + programcode + ".rss";
+            String hurl = programcode;
+            if (!hurl.startsWith("http")){
+                // prefix with bbc code address
+                hurl = "https://podcasts.files.bbci.co.uk/" + programcode + ".rss";
+            }
             Log.debug("opening" + hurl);
             // "http://downloads.bbc.co.uk/podcasts/" + channel + "/" + show + "/rss.xml"
             HttpURLConnection icon = (HttpURLConnection) (new URL(hurl).openConnection());
