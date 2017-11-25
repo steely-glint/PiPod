@@ -132,7 +132,7 @@ public class PiPod implements Runnable {
             // http://downloads.bbc.co.uk/podcasts/radio4/comedy/rss.xml
             // feed://podcasts.files.bbci.co.uk/p02pc9pj.rss
             String hurl = programcode;
-            if (!hurl.startsWith("http")){
+            if (!hurl.startsWith("http")) {
                 // prefix with bbc code address
                 hurl = "https://podcasts.files.bbci.co.uk/" + programcode + ".rss";
             }
@@ -156,11 +156,32 @@ public class PiPod implements Runnable {
                 icon = (HttpURLConnection) new URL(newUrl).openConnection();
                 Log.debug("Redirect to URL : " + newUrl);
             }
+            byte[] buff = new byte[0];
             int lin = icon.getContentLength();
-            byte[] buff = new byte[lin];
-            Log.debug("read " + lin);
-            DataInputStream is = new DataInputStream(icon.getInputStream());
-            is.readFully(buff);
+            if ((lin < 0)) {
+                Log.debug("read chunked ");
+                DataInputStream is = new DataInputStream(icon.getInputStream());
+                int got = 0;
+                int offs = 0;
+                byte[] tb = new byte[4096];
+                do {
+                    got = is.read(tb);
+                    if (got > 0) {
+                        byte[] nb = new byte[offs + got];
+                        Log.debug("got chunk " + got);
+                        System.arraycopy(buff, 0, nb, 0, offs);
+                        System.arraycopy(tb, 0, nb, offs, got);
+                        offs = nb.length;
+                        buff = nb;
+                    }
+                } while (got > 0);
+                Log.debug("final size chunk " + buff.length);
+            } else {
+                buff = new byte[lin];
+                Log.debug("read " + lin);
+                DataInputStream is = new DataInputStream(icon.getInputStream());
+                is.readFully(buff);
+            }
             ByteArrayInputStream bbi = new ByteArrayInputStream(buff);
             InputSource ips = new InputSource(bbi);
             XPath xPath = XPathFactory.newInstance().newXPath();

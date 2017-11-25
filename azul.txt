@@ -1,0 +1,10 @@
+    1  apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 0x219BD9C9
+    2  echo 'deb http://repos.azulsystems.com/debian stable main' > /etc/apt/sources.list.d/zulu.list
+    3  apt-get update -qq
+    4  apt-get install dirmngr
+    5  apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 0x219BD9C9
+    6  apt-get update
+    7  apt-get install zulu-embedded-8
+    8  env
+    9  vi /boot/podcasts
+
