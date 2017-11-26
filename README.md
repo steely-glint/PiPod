@@ -20,14 +20,20 @@ wget https://github.com/steely-glint/PiPod/raw/master/dist/lib/srtplight.jar
 and the 2 scripts:
 wget https://raw.githubusercontent.com/steely-glint/PiPod/master/scripts/pipod.sh
 wget https://raw.githubusercontent.com/steely-glint/PiPod/master/scripts/push.sh
+wget https://raw.githubusercontent.com/steely-glint/PiPod/podcasts
+
+Make the scripts executable:
+chmod 755 pipod.sh
+chmod 755 push.sh
 
 
-3) edit the pipod.sh script to change the default list of BBC podcasts
-currently 
-"b01s6xyk", "b007qlvb", "p02pc9pj", "p02pc9x6"
-Tweet of the day, Womans hour, and 2 commedy podcasts.
 
-Simply add the new list of program ids to the end of the command in pipod.sh
+3) copy podcasts to /boot/podcasts 
+and edit it to contain a list of podcasts you want to hear.
+Note - the advantage of the file being in /boot is that it can subsequently
+be edited by removing the SD from the pi (when switched off of course), placing it in a Mac, linux laptop or even a windows machine, and editing the file in the podcast file on the boot disk which is FAT formated so can be opened and written to by other non-linux machines.
+If you don't create a /boot/podcasts file PiPod will default to (my) selection of BBC podcasts :-)
+
 
 4) If you aren't using the MagPi kit, you will need to change push.sh to reflect
 how your pushbutton is connected.
