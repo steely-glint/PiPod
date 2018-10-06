@@ -7,14 +7,9 @@ package uk.co.westhawk.pipod;
 import com.phono.srtplight.Log;
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
-import java.io.File;
-import java.io.FileWriter;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.Writer;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.net.URLConnection;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -25,9 +20,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Consumer;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.stream.Stream;
 import javax.xml.xpath.XPath;
 import javax.xml.xpath.XPathConstants;
@@ -53,7 +45,7 @@ public class PiPod implements Runnable {
         if (args.length > 0) {
             new PiPod(args);
         } else {
-            String[] names = {"b01s6xyk", "b007qlvb", "p02pc9pj", "p02pc9x6"};
+            String[] names = {"https://distributedfutu.re/rss/DistributedFuture.rss"};
             new PiPod(names);
         }
     }
@@ -117,9 +109,38 @@ public class PiPod implements Runnable {
         played = Files.readAllLines(playPath);
     }
 
+    public String checkForRedirect(String p) {
+        String ret = p;
+        try {
+            HttpURLConnection icon = (HttpURLConnection) (new URL(p).openConnection());
+            // normally, 3xx is redirect
+            boolean redirect = false;
+            int status = icon.getResponseCode();
+            if (status != HttpURLConnection.HTTP_OK) {
+                if (status == HttpURLConnection.HTTP_MOVED_TEMP
+                        || status == HttpURLConnection.HTTP_MOVED_PERM
+                        || status == HttpURLConnection.HTTP_SEE_OTHER) {
+                    redirect = true;
+                }
+            }
+            if (redirect) {
+                // get redirect url from "location" header field
+                String newUrl = icon.getHeaderField("Location");
+                // open the new connnection again
+                Log.debug("Redirect to URL : " + newUrl);
+                ret = newUrl;
+            }
+            icon.disconnect();
+        } catch (Exception x) {
+            Log.debug("error with : " + p);
+        }
+        return ret;
+    }
+
     public void playProg(String p) throws InterruptedException {
         Log.debug("url is " + p);
-        ep = new MP3Play(p);
+        String rp = checkForRedirect(p);
+        ep = new MP3Play(rp);
         ep.setLoop(false);
         ep.start();
         ep.awaitEnd();
@@ -159,7 +180,7 @@ public class PiPod implements Runnable {
             byte[] buff = new byte[0];
             int lin = icon.getContentLength();
             if ((lin < 0)) {
-                Log.debug("read chunked ");
+                Log.verb("read chunked ");
                 DataInputStream is = new DataInputStream(icon.getInputStream());
                 int got = 0;
                 int offs = 0;
@@ -168,20 +189,21 @@ public class PiPod implements Runnable {
                     got = is.read(tb);
                     if (got > 0) {
                         byte[] nb = new byte[offs + got];
-                        Log.debug("got chunk " + got);
+                        Log.verb("got chunk " + got);
                         System.arraycopy(buff, 0, nb, 0, offs);
                         System.arraycopy(tb, 0, nb, offs, got);
                         offs = nb.length;
                         buff = nb;
                     }
                 } while (got > 0);
-                Log.debug("final size chunk " + buff.length);
+                Log.verb("final size chunk " + buff.length);
             } else {
                 buff = new byte[lin];
-                Log.debug("read " + lin);
+                Log.verb("read " + lin);
                 DataInputStream is = new DataInputStream(icon.getInputStream());
                 is.readFully(buff);
             }
+            Log.debug("size was "+buff.length);
             ByteArrayInputStream bbi = new ByteArrayInputStream(buff);
             InputSource ips = new InputSource(bbi);
             XPath xPath = XPathFactory.newInstance().newXPath();
@@ -195,6 +217,7 @@ public class PiPod implements Runnable {
                 Node item = items.item(i);
                 String url = uexp.evaluate(item);
                 String date = dexp.evaluate(item);
+
                 Long d = Date.parse(date);
                 Log.verb("adding " + url);
                 Log.verb("date " + date + " " + d);
