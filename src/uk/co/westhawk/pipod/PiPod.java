@@ -20,6 +20,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import java.util.stream.Stream;
 import javax.xml.xpath.XPath;
 import javax.xml.xpath.XPathConstants;
@@ -61,10 +70,29 @@ public class PiPod implements Runnable {
             Log.debug(ex.getMessage());
         }
         // pull in the current list of available programs
-        HashMap<String, Long> progs = new HashMap();
+        ConcurrentHashMap<String, Long> progs = new ConcurrentHashMap();
+        int cores = Runtime.getRuntime().availableProcessors();
+        Log.debug("cores = "+cores);
+        ExecutorService executorService = Executors.newFixedThreadPool(cores*2);
+        CountDownLatch latch = new CountDownLatch(names.length);
         for (String n : names) {
-            HashMap ps = getPrograms(n);
-            progs.putAll(ps);
+            final String name = n;
+            Future<String> future = executorService.submit(() -> {
+                try {
+                    HashMap ps = getPrograms(name);
+                    progs.putAll(ps);
+                } catch (Throwable t) {
+                    Log.error("Threw " + t);
+                    t.printStackTrace();
+                }
+                latch.countDown();
+                return n;
+            });
+        }
+        try {
+            latch.await(5, TimeUnit.MINUTES);
+        } catch (InterruptedException ex) {
+            ex.printStackTrace();
         }
         // remove anything in the played list that isn't available
         cleanPlayed(progs.keySet());
@@ -203,7 +231,7 @@ public class PiPod implements Runnable {
                 DataInputStream is = new DataInputStream(icon.getInputStream());
                 is.readFully(buff);
             }
-            Log.debug("size was "+buff.length);
+            Log.debug("size was " + buff.length);
             ByteArrayInputStream bbi = new ByteArrayInputStream(buff);
             InputSource ips = new InputSource(bbi);
             XPath xPath = XPathFactory.newInstance().newXPath();
